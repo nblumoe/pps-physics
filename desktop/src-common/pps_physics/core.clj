@@ -82,14 +82,15 @@
 (defscreen main-screen
   :on-show
   (fn [screen entities]
-    (let [screen (update! screen
+    (let [gravity -80
+          screen (update! screen
                           :renderer (stage)
                           :camera (orthographic :set-to-ortho false 10 10)
-                          :world (box-2d 0 -9.81))
+                          :world (box-2d 0 gravity))
           num-balls 1]
       (concat (create-static-world-entities! screen)
               (repeatedly num-balls #(doto (assoc (create-ball-entity! screen) :ball? true)
-                                       (body-position! (rand 10) 10 0))))))
+                                       (body-position! (+ 0.3 (rand 9)) 10 0))))))
 
   :on-render
   (fn [screen entities]
@@ -109,17 +110,25 @@
 
 (defn ball-rests?
   [old-ball new-ball]
-  (if (and (= (:x old-ball) (:x new-ball))
-           (= (:y old-ball) (:y new-ball)))
+  (if (and old-ball
+           (> 0.01 (Math/abs (- (:x old-ball) (:x new-ball))))
+           (> 0.01 (Math/abs (- (:y old-ball) (:y new-ball)))))
     new-ball
     (do
       (Thread/sleep 150)
       (ball-rests? new-ball (get-ball)))))
 
-(defn simulate!
+(defn simulate
   []
   (on-gl (set-screen! pps-physics-game main-screen))
-  (ball-rests? {:x nil :y nil} (get-ball)))
+  (ball-rests? nil (get-ball)))
+
+(defn run-simulations
+  [n]
+  (-> (repeatedly n #(->> (:x (simulate))
+                          (format "%.1f")))
+      frequencies
+      time))
 
 (defscreen blank-screen
   :on-render
