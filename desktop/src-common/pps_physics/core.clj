@@ -6,6 +6,15 @@
             [play-clj.repl :as repl]
             [play-clj.ui :refer :all]))
 
+(def params (atom {:circle-density 1e20
+                   :circle-friction 0.1
+                   :circle-restitution 0.5
+                   :rect-density 1e9
+                   :rect-friction 0.99
+                   :rect-restitution 0.0
+                   :world-gravity -80
+                   :ball-initial-x nil}))
+
 (defn create-circle-body!
   [screen radius type]
   (let [body (add-body! screen (if (= type :static)
@@ -13,7 +22,10 @@
                                  (body-def :dynamic)))]
     (->> (circle-shape :set-radius radius
                        :set-position (vector-2 radius radius))
-         (fixture-def :density 1e20 :friction 0.1 :restitution 0.5 :shape)
+         (fixture-def :density (:circle-density @params)
+                      :friction (:circle-friction @params)
+                      :restitution (:circle-restitution @params)
+                      :shape)
          (body! body :create-fixture))
     (body! body :set-fixed-rotation true)
     body))
@@ -31,7 +43,10 @@
                                  (body-def :static)
                                  (body-def :dynamic)))]
     (->> (polygon-shape :set-as-box (/ width 2) (/ height 2))
-         (fixture-def :density 1e9 :friction 0.99 :restitution 0.0 :shape)
+         (fixture-def :density (:rect-density @params)
+                      :friction (:rect-friction @params)
+                      :restitution (:rect-restitution @params)
+                      :shape)
          (body! body :create-fixture))
     body))
 
@@ -82,7 +97,7 @@
 (defscreen main-screen
   :on-show
   (fn [screen entities]
-    (let [gravity -80
+    (let [gravity (:world-gravity @params)
           screen (update! screen
                           :renderer (stage)
                           :camera (orthographic :set-to-ortho false 10 10)
@@ -90,7 +105,7 @@
           num-balls 1]
       (concat (create-static-world-entities! screen)
               (repeatedly num-balls #(doto (assoc (create-ball-entity! screen) :ball? true)
-                                       (body-position! (+ 0.3 (rand 9)) 10 0))))))
+                                       (body-position! (:ball-initial-x @params) 10 0))))))
 
   :on-render
   (fn [screen entities]
@@ -119,16 +134,19 @@
       (ball-rests? new-ball (get-ball)))))
 
 (defn simulate
-  []
+  [new-params]
+  (reset! params new-params)
   (on-gl (set-screen! pps-physics-game main-screen))
   (ball-rests? nil (get-ball)))
 
 (defn run-simulations
-  [n]
-  (-> (repeatedly n #(->> (:x (simulate))
-                          (format "%.1f")))
-      frequencies
-      time))
+  ([n]
+   (run-simulations n #(assoc @params :ball-initial-x (+ 0.3 (rand 9)))))
+  ([n create-params]
+   (-> (repeatedly n #(->> (:x (simulate (create-params)))
+                           (format "%.1f")))
+       frequencies
+       time)))
 
 (defscreen blank-screen
   :on-render
