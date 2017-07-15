@@ -6,14 +6,17 @@
             [play-clj.repl :as repl]
             [play-clj.ui :refer :all]))
 
-(def params (atom {:circle-density 1e20
-                   :circle-friction 0.1
-                   :circle-restitution 0.5
-                   :rect-density 1e9
-                   :rect-friction 0.99
-                   :rect-restitution 0.0
-                   :world-gravity -80
-                   :ball-initial-x nil}))
+(def default-params
+  {:circle-density 1e20
+   :circle-friction 0.1
+   :circle-restitution 0.5
+   :rect-density 1e9
+   :rect-friction 0.99
+   :rect-restitution 0.0
+   :world-gravity -80
+   :ball-initial-x nil})
+
+(def params (atom default-params))
 
 (defn create-circle-body!
   [screen radius type]
@@ -57,16 +60,25 @@
            :body (create-rect-body! screen width height :static)
            :width width :height (/ height 2))))
 
+(defn create-wall-entity!
+  [screen width height]
+  (let [floor (texture "wall.png")]
+    (assoc floor
+           :body (create-rect-body! screen width height :static)
+           :width width :height (/ height 2))))
+
 (defn create-bin-entity!
   [screen radius]
-  (let [floor (texture "floor.png")]
+  (let [floor (texture "bin.png")]
     (assoc floor
            :body (create-circle-body! screen radius :static)
-           :width (* 2 radius) :height (* 2 radius))))
+           :width (* 5 radius) :height (* 3 radius))))
 
 (defn create-static-world-entities!
   [screen]
-  (let [circle-1 (doto (create-circle-entity! screen 1.5)
+  (let [background (assoc (texture "background.png")
+                          :width 10 :height 10)
+        circle-1 (doto (create-circle-entity! screen 1.5)
                    (body-position! 1.2 5 0))
         circle-2 (doto (create-circle-entity! screen 1.2)
                    (body-position! 6 3 0))
@@ -80,11 +92,11 @@
                            (body-position! entity (* % floor-bin-spacing) 0.5 0)
                            entity)
                         (range 20))
-        walls [(doto (create-floor-entity! screen 0.2 20)
+        walls [(doto (create-wall-entity! screen 0.05 20)
                  (body-position! 0 0.5 0))
-               (doto (create-floor-entity! screen 0.2 20)
-                 (body-position! 9.8 0.5 0))]]
-    (concat [circle-1 circle-2] floor-blocks floor-bins walls)))
+               (doto (create-wall-entity! screen 0.05 20)
+                 (body-position! 9.95 0.5 0))]]
+    (concat [background circle-1 circle-2] floor-blocks floor-bins walls)))
 
 (defn create-ball-entity!
   [screen]
@@ -137,15 +149,16 @@
   [new-params]
   (reset! params new-params)
   (on-gl (set-screen! pps-physics-game main-screen))
-  (ball-rests? nil (get-ball)))
+  (->> (ball-rests? nil (get-ball))
+       :x
+       (format "%.1f")
+       Float/parseFloat))
 
 (defn run-simulations
   ([n]
-   (run-simulations n #(assoc @params :ball-initial-x (+ 0.3 (rand 9)))))
+   (run-simulations n #(assoc default-params :ball-initial-x (+ 0.3 (rand 9)))))
   ([n create-params]
-   (-> (repeatedly n #(->> (:x (simulate (create-params)))
-                           (format "%.1f")))
-       frequencies
+   (-> (repeatedly n #(simulate (create-params)))
        time)))
 
 (defscreen blank-screen
