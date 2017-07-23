@@ -39,12 +39,12 @@
 
 (defn read-data
   [experiment file]
-  (edn/read-string (slurp (str "results" "/" experiment "/" (name file) ".edn"))))
+  (edn/read-string (slurp (str "results/" experiment "/" (name file) ".edn"))))
 
 (defn persist-data
-  [file data]
-  (let [filename (str (name file) ".edn")
-        old-data (read-data file)
+  [experiment file data]
+  (let [filename (str "results/" experiment "/" (name file) ".edn")
+        old-data (read-data experiment file)
         new-data (vec (concat old-data data))]
     (spit filename new-data)))
 
@@ -92,24 +92,26 @@
   (.setPadding chart (org.jfree.ui.RectangleInsets. padding padding padding padding))
   chart)
 
+(def theme
+  (doto (org.jfree.chart.StandardChartTheme/createJFreeTheme)
+    (.setXYBarPainter (org.jfree.chart.renderer.xy.StandardXYBarPainter.))
+    (.setShadowVisible false)
+    (.setSmallFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 24))
+    (.setRegularFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 28))
+    (.setLargeFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 42))
+    (.setExtraLargeFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 48))
+    (.setDrawingSupplier
+     (org.jfree.chart.plot.DefaultDrawingSupplier.
+      (into-array java.awt.Paint default-colors)
+      org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_FILL_PAINT_SEQUENCE
+      org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_OUTLINE_PAINT_SEQUENCE
+      org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_STROKE_SEQUENCE
+      org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_OUTLINE_STROKE_SEQUENCE
+      org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_SHAPE_SEQUENCE))))
+
 (defn plot-results
   [experiment]
-  (let [out-file #(str "results/" experiment  "/" % ".png")
-        theme (doto (org.jfree.chart.StandardChartTheme/createJFreeTheme)
-                (.setXYBarPainter (org.jfree.chart.renderer.xy.StandardXYBarPainter.))
-                (.setShadowVisible false)
-                (.setSmallFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 24))
-                (.setRegularFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 28))
-                (.setLargeFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 42))
-                (.setExtraLargeFont (java.awt.Font. "SansSerif" java.awt.Font/PLAIN 48))
-                (.setDrawingSupplier
-                 (org.jfree.chart.plot.DefaultDrawingSupplier.
-                  (into-array java.awt.Paint default-colors)
-                  org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_FILL_PAINT_SEQUENCE
-                  org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_OUTLINE_PAINT_SEQUENCE
-                  org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_STROKE_SEQUENCE
-                  org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_OUTLINE_STROKE_SEQUENCE
-                  org.jfree.chart.plot.DefaultDrawingSupplier/DEFAULT_SHAPE_SEQUENCE)))]
+  (let [out-file #(str "results/" experiment  "/" % ".png")]
     (-> (incanter.charts/histogram
          gravity-prior
          :legend false
@@ -161,31 +163,35 @@
 
 ;; RUN GRAVITY MODEL
 
-(comment
-
-  (def observations (time (doall (physics/run-simulations 200))))
-
-  (persist-data :observations observations)
-
+(defn run-gravity-inference
+  [n]
   (time
    (let [results (doquery :lmh physics [(read-data "gravity" :observations)])]
      (loop [batch 0
             rs    results]
-       (when (< batch 1e2)
+       (when (< batch n)
          (persist-data "gravity" :results [(first rs)])
-         (recur (inc batch) (next rs))))))
+         (recur (inc batch) (next rs)))))))
 
-
+(defn plot-gravity-results
+  []
   (-> (incanter.charts/histogram
        (map :world-gravity (map :result (read-data "gravity" :results)))
        :legend false
        :x-label "g"
        :nbins 30
+       :theme theme
        :density true)
       (incanter.charts/add-histogram
        gravity-prior
        :nbins 30
        :density true)
-      incanter.core/view)
+      incanter.core/view))
+
+(comment
+
+  ;; following functions calls can be used to create and store new observations
+  (def observations (time (doall (physics/run-simulations 200))))
+  (persist-data "gravity" :observations observations)
 
   )
