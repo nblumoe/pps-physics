@@ -95,8 +95,11 @@
         walls [(doto (create-wall-entity! screen 0.05 20)
                  (body-position! 0 0.5 0))
                (doto (create-wall-entity! screen 0.05 20)
-                 (body-position! 9.95 0.5 0))]]
-    (concat [background circle-1 circle-2] floor-blocks floor-bins walls)))
+                 (body-position! 9.95 0.5 0))]
+        target (assoc (texture "target.png")
+                      :width 0.5 :height 1
+                      :x 4.95 :y 0.45)]
+    (concat [background circle-1 circle-2] floor-blocks floor-bins walls [target])))
 
 (defn create-ball-entity!
   [screen]
